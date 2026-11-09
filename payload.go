@@ -41,15 +41,26 @@ type styleFields struct {
 	Shading      bool `json:"shading"`
 }
 
+type selectionFields struct {
+	UseSelection    bool   `json:"use_selection"`
+	SelectionOrigin [2]int `json:"selection_origin"`
+}
+
+func noSelection() *selectionFields {
+	return &selectionFields{}
+}
+
 type payload struct {
+	*selectionFields
+
 	ModelName           string       `json:"model_name"`
 	Description         string       `json:"description,omitempty"`
-	NegativeDescription string       `json:"negative_description,omitempty"`
+	NegativeDescription *string      `json:"negative_description,omitempty"`
 	Action              string       `json:"action,omitempty"`
 	Method              string       `json:"method,omitempty"`
 	Seed                any          `json:"seed"`
 	NoBackground        bool         `json:"no_background"`
-	CropToMask          bool         `json:"crop_to_mask,omitempty"`
+	CropToMask          *bool        `json:"crop_to_mask,omitempty"`
 	OutputMethod        string       `json:"output_method"`
 	OutputFormat        string       `json:"output_format,omitempty"`
 	FrameCount          int          `json:"frame_count,omitempty"`
@@ -92,6 +103,7 @@ func (j job) payload(acc account, seed int64) payload {
 	}
 	switch j.mode {
 	case modeEdit:
+		base.selectionFields = noSelection()
 		base.ModelName = modelEdit
 		base.Description = j.description
 		base.Method = methodText
@@ -100,16 +112,18 @@ func (j job) payload(acc account, seed int64) payload {
 		base.OutputFormat = outputFrames
 		base.EditImage = j.field(0)
 	case modeInpaint:
+		base.selectionFields = noSelection()
 		base.ModelName = modelInpaint
 		base.Description = j.description
-		base.NegativeDescription = j.negative
+		base.NegativeDescription = stringPointer(j.negative)
 		base.Seed = strconv.FormatInt(seed, 10)
-		base.CropToMask = j.crop
+		base.CropToMask = boolPointer(j.crop)
 		base.OutputMethod = outputNewLayer
 		base.OutputFormat = outputFrames
 		base.InpaintingImage = j.field(0)
 		base.MaskImage = j.field(1)
 	case modeAnimate:
+		base.selectionFields = noSelection()
 		base.ModelName = modelAnimate
 		base.Action = j.action
 		base.Seed = strconv.FormatInt(seed, 10)
@@ -125,7 +139,7 @@ func (j job) payload(acc account, seed int64) payload {
 		style := styleFields{ColorPalette: j.style.palette, Outline: j.style.outline, Detail: j.style.detail, Shading: j.style.shading}
 		base.ModelName = modelNew
 		base.Description = j.description
-		base.NegativeDescription = j.negative
+		base.NegativeDescription = stringPointer(j.negative)
 		base.Seed = seed
 		base.OutputMethod = outputNewFrame
 		base.StyleOptions = &style
@@ -142,6 +156,14 @@ func (j job) field(index int) *rgbaField {
 	}
 	image := j.images[index]
 	return &rgbaField{Type: "rgba_bytes", Base64: image.base64, Width: image.side, Height: image.side}
+}
+
+func stringPointer(value string) *string {
+	return &value
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func randomSeed() (int64, error) {
