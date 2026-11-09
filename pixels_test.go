@@ -3,7 +3,9 @@ package pixellab
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
+	"hash/crc32"
 	"image"
 	"image/png"
 	"os"
@@ -105,4 +107,45 @@ func TestDecodePNGRefusesOtherFormats(t *testing.T) {
 	if _, err := decodePNG(path); !errors.Is(err, ErrInvalidAttachment) {
 		t.Fatalf("error = %v, want ErrInvalidAttachment", err)
 	}
+}
+
+func TestDecodePNGRefusesAHeaderLargerThanTheLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "huge.png")
+	if err := os.WriteFile(path, headerOnlyPNG(40000, 40000), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := decodePNG(path); !errors.Is(err, ErrInvalidAttachment) {
+		t.Fatalf("error = %v, want ErrInvalidAttachment for a 40000 px header", err)
+	}
+}
+
+func TestDecodePNGRefusesAFileLargerThanTheLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big.png")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(pngSignature); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(maxAttachmentBytes + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := decodePNG(path); !errors.Is(err, ErrInvalidAttachment) {
+		t.Fatalf("error = %v, want ErrInvalidAttachment for a file over the limit", err)
+	}
+}
+
+func headerOnlyPNG(width, height uint32) []byte {
+	header := binary.BigEndian.AppendUint32(nil, width)
+	header = binary.BigEndian.AppendUint32(header, height)
+	header = append(header, 8, 6, 0, 0, 0)
+	chunk := append([]byte("IHDR"), header...)
+	data := []byte(pngSignature)
+	data = binary.BigEndian.AppendUint32(data, uint32(len(header)))
+	data = append(data, chunk...)
+	return binary.BigEndian.AppendUint32(data, crc32.ChecksumIEEE(chunk))
 }

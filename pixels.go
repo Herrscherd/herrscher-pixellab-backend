@@ -8,28 +8,35 @@ import (
 	"image/draw"
 	"image/png"
 	"math"
-	"os"
 )
 
 const pngSignature = "\x89PNG\r\n\x1a\n"
 
 const (
-	rgbaChannels = 4
-	gridSmall    = 42
-	gridMedium   = 85
-	gridLarge    = 170
-	gridDense    = 8
-	gridMid      = 4
-	gridSparse   = 2
+	maxAttachmentBytes = 8 << 20
+	rgbaChannels       = 4
+	gridSmall          = 42
+	gridMedium         = 85
+	gridLarge          = 170
+	gridDense          = 8
+	gridMid            = 4
+	gridSparse         = 2
 )
 
 func decodePNG(path string) (*image.NRGBA, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readBounded(path, maxAttachmentBytes)
 	if err != nil {
 		return nil, fmt.Errorf("%w: read %s: %w", ErrInvalidAttachment, path, err)
 	}
 	if !bytes.HasPrefix(raw, []byte(pngSignature)) {
 		return nil, fmt.Errorf("%w: %s is not a PNG", ErrInvalidAttachment, path)
+	}
+	header, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("%w: read the header of %s: %w", ErrInvalidAttachment, path, err)
+	}
+	if header.Width != header.Height || header.Width > maxSize {
+		return nil, fmt.Errorf("%w: %s is %dx%d, want a square of at most %d px", ErrInvalidAttachment, path, header.Width, header.Height, maxSize)
 	}
 	decoded, err := png.Decode(bytes.NewReader(raw))
 	if err != nil {
