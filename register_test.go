@@ -29,6 +29,23 @@ func TestRegisterDeclaresABackend(t *testing.T) {
 	}
 }
 
+func TestCatalogRootListsTheLocales(t *testing.T) {
+	entries, err := fs.ReadDir(localeRoot{}, ".")
+	if err != nil {
+		t.Fatalf("read the catalog root: %v", err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if !slices.Contains(names, "en.json") || !slices.Contains(names, "fr.json") {
+		t.Fatalf("catalog root = %v, want en.json and fr.json", names)
+	}
+	if _, err := (localeRoot{}).Open("../go.mod"); !errors.Is(err, fs.ErrInvalid) {
+		t.Fatalf("open outside the catalog error = %v, want fs.ErrInvalid", err)
+	}
+}
+
 func TestProbeWithoutAccountNamesTheVariable(t *testing.T) {
 	report := prober{}.probe(t.Context(), contracts.ProbeAccess{Config: contracts.PluginConfig{Settings: map[string]string{settingAsepriteDir: t.TempDir()}}})
 	if report.State != contracts.HealthDown || report.Detail.Code != contracts.CodeHealthEnvMissing {

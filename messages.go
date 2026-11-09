@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"path"
 	"sync"
 
 	"github.com/Herrscherd/herrscher-contracts/i18n"
@@ -59,5 +60,8 @@ func (m *messages) render(lang i18n.Language, key string, params map[string]any)
 type localeRoot struct{}
 
 func (localeRoot) Open(name string) (fs.File, error) {
-	return localeFiles.Open("locales/" + name)
+	if !fs.ValidPath(name) {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	}
+	return localeFiles.Open(path.Join("locales", name))
 }
