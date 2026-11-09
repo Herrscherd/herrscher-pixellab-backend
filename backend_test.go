@@ -2,6 +2,7 @@ package pixellab
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -91,6 +92,7 @@ func startFake(t *testing.T, script func(path, secret string) []string) (*Backen
 			accounts: accounts,
 			client:   client{endpoint: endpoint, timeout: 5 * time.Second},
 			texts:    newMessages(),
+			turn:     make(chan struct{}, 1),
 		}
 	}
 	return build(account{secret: "secret-one", version: "0.4.120", tier: 1}), fake, build
@@ -307,6 +309,50 @@ func TestRespondNeedsAnOutbox(t *testing.T) {
 	_, err := backend.Respond(t.Context(), contracts.Prompt{Content: "--size 2 tree"}, nil)
 	if !errors.Is(err, ErrNoOutbox) {
 		t.Fatalf("error = %v, want ErrNoOutbox", err)
+	}
+}
+
+func TestRespondWaitsForItsTurnOrItsContext(t *testing.T) {
+	backend, fake, _ := startFake(t, func(string, string) []string { return []string{finalMessage(2, 2, 1)} })
+	backend.turn <- struct{}{}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := backend.Respond(ctx, contracts.Prompt{Content: "--size 2 tree", Outbox: t.TempDir()}, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if calls := fake.recorded(); len(calls) != 0 {
+		t.Fatalf("calls = %+v, want none while the turn is taken", calls)
+	}
+}
+
+func TestTurnTimeoutBoundsTheWholeTurn(t *testing.T) {
+	release := make(chan struct{})
+	backend, _, _ := startFake(t, func(string, string) []string {
+		<-release
+		return []string{finalMessage(2, 2, 1)}
+	})
+	t.Cleanup(func() { close(release) })
+	backend.settings.turnTimeout = 50 * time.Millisecond
+	_, err := respondWith(t, backend, "--size 2 tree", nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestInvalidOutboxWritesNothing(t *testing.T) {
+	t.Chdir(t.TempDir())
+	backend, _, _ := startFake(t, func(string, string) []string { return []string{finalMessage(2, 2, 1)} })
+	_, err := backend.Respond(t.Context(), contracts.Prompt{Content: "--size 2 tree", Outbox: "relative-outbox"}, nil)
+	if !errors.Is(err, contracts.ErrInvalidOutboundFile) {
+		t.Fatalf("error = %v, want contracts.ErrInvalidOutboundFile", err)
+	}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("entries = %v, want none", entries)
 	}
 }
 

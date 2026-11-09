@@ -35,6 +35,11 @@
     "other": "deadline of one generation request, slow queue included, as a Go duration"
   },
   {
+    "id": "pixellab.setting.turn_timeout",
+    "description": "Help of the turn_timeout setting: the deadline of one whole turn, every account and image included",
+    "other": "deadline of one whole turn, every account and image included, as a Go duration"
+  },
+  {
     "id": "pixellab.reply.delivered",
     "description": "Reply text sent with the PNG files of a turn; Count is the number of files",
     "one": "{{.Count}} image ready",

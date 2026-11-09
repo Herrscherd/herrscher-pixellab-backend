@@ -35,6 +35,11 @@
     "other": "délai d'une requête de génération, file lente comprise, au format durée Go"
   },
   {
+    "id": "pixellab.setting.turn_timeout",
+    "description": "Aide du réglage turn_timeout : délai d'un tour complet, tous comptes et toutes images compris",
+    "other": "délai d'un tour complet, tous comptes et toutes images compris, au format durée Go"
+  },
+  {
     "id": "pixellab.reply.delivered",
     "description": "Texte de réponse envoyé avec les fichiers PNG d'un tour ; Count est le nombre de fichiers",
     "one": "{{.Count}} image prête",

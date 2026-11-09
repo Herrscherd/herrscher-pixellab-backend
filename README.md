@@ -33,6 +33,7 @@ Then set the settings below, either in the herrscher configuration or through th
 | `default_size` | `PIXELLAB_DEFAULT_SIZE` | `64` | Side in pixels of a generated image when the prompt has no `--size`. Maximum 256. |
 | `max_images` | `PIXELLAB_MAX_IMAGES` | `4` | Largest value accepted for `--n` in one prompt. |
 | `timeout` | `PIXELLAB_TIMEOUT` | `10m` | Time limit of one request, a Go duration such as `90s` or `12m`. |
+| `turn_timeout` | `PIXELLAB_TURN_TIMEOUT` | `30m` | Time limit of one whole turn, every account and image included, a Go duration. |
 
 At least one account source must resolve to an account. Accounts are read in this order: `accounts` or `PIXELLAB_ACCOUNTS`, then `accounts_file`, then the Aseprite extension.
 
@@ -103,6 +104,12 @@ Attachments must be PNG files, square, and of the size given by `--size` when th
 ## Slow queue and timeout
 
 When a subscription runs out of quota, PixelLab does not refuse the request. It puts it in a low-priority queue and sends `slow` progress messages. With several accounts, the backend marks an account that reports `slow` as dry and moves to the next one. When every account is dry, the backend rides the slow queue on the first live account. That wait takes about 5 to 7 minutes, which is why the default `timeout` is 10 minutes. Lower it only if you accept that slow jobs will fail.
+
+A turn runs one request after another, so `turn_timeout` (default `30m`) bounds the whole turn: every account tried and every image produced. Turns run one at a time per backend; a turn waiting for the previous one stops when its context ends.
+
+## Files and the host
+
+The backend writes each PNG into the prompt's outbox and reports it through `TakeFiles`. The host calls `TakeFiles` right after each `Respond`, in the same turn and before any other `Respond`. Files of a `Respond` that were not taken by then are handed over with the files of the next turn.
 
 ## Probe
 

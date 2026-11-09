@@ -21,6 +21,7 @@ const (
 	helpDefaultSize  = "pixellab.setting.default_size"
 	helpMaxImages    = "pixellab.setting.max_images"
 	helpTimeout      = "pixellab.setting.timeout"
+	helpTurnTimeout  = "pixellab.setting.turn_timeout"
 	replyDelivered   = "pixellab.reply.delivered"
 	progressPercent  = "pixellab.progress.percent"
 )

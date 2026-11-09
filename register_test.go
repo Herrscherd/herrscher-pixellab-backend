@@ -62,7 +62,7 @@ func TestEveryMessageRendersInEveryLanguage(t *testing.T) {
 	}
 	keys := []string{
 		helpAccounts, helpAccountsFile, helpAsepriteDir, helpEndpoint,
-		helpDefaultSize, helpMaxImages, helpTimeout, replyDelivered, progressPercent,
+		helpDefaultSize, helpMaxImages, helpTimeout, helpTurnTimeout, replyDelivered, progressPercent,
 	}
 	params := map[string]any{"Count": 2, "Percent": 40}
 	for _, lang := range i18n.Languages() {

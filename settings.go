@@ -19,15 +19,17 @@ const (
 	settingDefaultSize  = "default_size"
 	settingMaxImages    = "max_images"
 	settingTimeout      = "timeout"
+	settingTurnTimeout  = "turn_timeout"
 
-	defaultEndpoint  = "wss://api.pixellab.ai"
-	defaultSize      = 64
-	defaultMaxImages = 4
-	defaultTimeout   = 10 * time.Minute
-	maxSize          = 256
-	maxGrid          = 8
-	defaultFrames    = 8
-	maxFrames        = 16
+	defaultEndpoint    = "wss://api.pixellab.ai"
+	defaultSize        = 64
+	defaultMaxImages   = 4
+	defaultTimeout     = 10 * time.Minute
+	defaultTurnTimeout = 30 * time.Minute
+	maxSize            = 256
+	maxGrid            = 8
+	defaultFrames      = 8
+	maxFrames          = 16
 )
 
 type settings struct {
@@ -38,6 +40,7 @@ type settings struct {
 	defaultSize  int
 	maxImages    int
 	timeout      time.Duration
+	turnTimeout  time.Duration
 }
 
 func settingDeclarations() []contracts.Setting {
@@ -49,6 +52,7 @@ func settingDeclarations() []contracts.Setting {
 		{Key: settingDefaultSize, Env: "PIXELLAB_DEFAULT_SIZE", Help: helpDefaultSize, Default: strconv.Itoa(defaultSize)},
 		{Key: settingMaxImages, Env: "PIXELLAB_MAX_IMAGES", Help: helpMaxImages, Default: strconv.Itoa(defaultMaxImages)},
 		{Key: settingTimeout, Env: "PIXELLAB_TIMEOUT", Help: helpTimeout, Default: defaultTimeout.String()},
+		{Key: settingTurnTimeout, Env: "PIXELLAB_TURN_TIMEOUT", Help: helpTurnTimeout, Default: defaultTurnTimeout.String()},
 	}
 }
 
@@ -61,7 +65,11 @@ func parseSettings(cfg contracts.PluginConfig) (settings, error) {
 	if err != nil {
 		return settings{}, err
 	}
-	timeout, err := timeoutSetting(cfg)
+	timeout, err := durationSetting(cfg, settingTimeout, defaultTimeout)
+	if err != nil {
+		return settings{}, err
+	}
+	turnTimeout, err := durationSetting(cfg, settingTurnTimeout, defaultTurnTimeout)
 	if err != nil {
 		return settings{}, err
 	}
@@ -77,6 +85,7 @@ func parseSettings(cfg contracts.PluginConfig) (settings, error) {
 		defaultSize:  size,
 		maxImages:    images,
 		timeout:      timeout,
+		turnTimeout:  turnTimeout,
 	}, nil
 }
 
@@ -92,14 +101,14 @@ func positiveSetting(cfg contracts.PluginConfig, key string, fallback, limit int
 	return value, nil
 }
 
-func timeoutSetting(cfg contracts.PluginConfig) (time.Duration, error) {
-	text := strings.TrimSpace(cfg.Get(settingTimeout))
+func durationSetting(cfg contracts.PluginConfig, key string, fallback time.Duration) (time.Duration, error) {
+	text := strings.TrimSpace(cfg.Get(key))
 	if text == "" {
-		return defaultTimeout, nil
+		return fallback, nil
 	}
 	value, err := time.ParseDuration(text)
 	if err != nil || value <= 0 {
-		return 0, fmt.Errorf("%w: %s=%q", ErrInvalidSetting, settingTimeout, text)
+		return 0, fmt.Errorf("%w: %s=%q", ErrInvalidSetting, key, text)
 	}
 	return value, nil
 }

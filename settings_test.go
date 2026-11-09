@@ -12,7 +12,7 @@ func TestParseSettingsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.endpoint != defaultEndpoint || s.defaultSize != defaultSize || s.maxImages != defaultMaxImages || s.timeout != defaultTimeout {
+	if s.endpoint != defaultEndpoint || s.defaultSize != defaultSize || s.maxImages != defaultMaxImages || s.timeout != defaultTimeout || s.turnTimeout != defaultTurnTimeout {
 		t.Fatalf("settings = %+v, want the defaults", s)
 	}
 }
@@ -38,6 +38,8 @@ func TestParseSettingsRejectsBadValues(t *testing.T) {
 		{name: "max images zero", key: settingMaxImages, value: "0"},
 		{name: "timeout not a duration", key: settingTimeout, value: "soon"},
 		{name: "timeout zero", key: settingTimeout, value: "0s"},
+		{name: "turn timeout not a duration", key: settingTurnTimeout, value: "later"},
+		{name: "turn timeout negative", key: settingTurnTimeout, value: "-1m"},
 		{name: "endpoint over http", key: settingEndpoint, value: "https://api.pixellab.ai"},
 		{name: "endpoint without host", key: settingEndpoint, value: "wss://"},
 		{name: "ws on a public host", key: settingEndpoint, value: "ws://api.pixellab.ai"},

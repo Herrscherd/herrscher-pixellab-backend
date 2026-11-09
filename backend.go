@@ -29,7 +29,7 @@ type Backend struct {
 	accounts []account
 	client   client
 	texts    *messages
-	turn     sync.Mutex
+	turn     chan struct{}
 	filesMu  sync.Mutex
 	files    []contracts.OutboundFile
 }
@@ -52,13 +52,20 @@ func newBackend(cfg contracts.PluginConfig, texts *messages) (*Backend, error) {
 		accounts: accounts,
 		client:   client{endpoint: config.endpoint, timeout: config.timeout},
 		texts:    texts,
+		turn:     make(chan struct{}, 1),
 	}, nil
 }
 
 // Respond generates the images a prompt asks for and writes them to its outbox.
 func (b *Backend) Respond(ctx context.Context, prompt contracts.Prompt, onEvent func(contracts.BackendEvent)) (string, error) {
-	b.turn.Lock()
-	defer b.turn.Unlock()
+	select {
+	case b.turn <- struct{}{}:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	defer func() { <-b.turn }()
+	ctx, cancel := context.WithTimeout(ctx, b.settings.turnTimeout)
+	defer cancel()
 	if prompt.Outbox == "" {
 		return "", ErrNoOutbox
 	}
@@ -97,7 +104,10 @@ func (b *Backend) Respond(ctx context.Context, prompt contracts.Prompt, onEvent 
 	return b.texts.render(lang, replyDelivered, map[string]any{"Count": len(produced)}), nil
 }
 
-// TakeFiles returns the files produced since the last call and clears them.
+// TakeFiles returns the files produced since the last call and clears them. The
+// host calls it right after each Respond, in the same turn and before any other
+// Respond: the files of a Respond not taken by then are handed over with the files
+// of the next turn.
 func (b *Backend) TakeFiles() []contracts.OutboundFile {
 	b.filesMu.Lock()
 	defer b.filesMu.Unlock()
@@ -170,13 +180,12 @@ func (b *Backend) writeImage(outbox string, number int, image wireImage) (contra
 		return contracts.OutboundFile{}, err
 	}
 	name := fmt.Sprintf(outputPattern, number)
-	path := filepath.Join(outbox, name)
-	if err := os.WriteFile(path, data, outputPermission); err != nil {
-		return contracts.OutboundFile{}, fmt.Errorf("write %s: %w", name, err)
-	}
-	file := contracts.OutboundFile{Path: path, Name: name, ContentType: outputType}
+	file := contracts.OutboundFile{Path: filepath.Join(outbox, name), Name: name, ContentType: outputType}
 	if err := contracts.ValidateOutboundFile(file, outbox); err != nil {
 		return contracts.OutboundFile{}, err
+	}
+	if err := os.WriteFile(file.Path, data, outputPermission); err != nil {
+		return contracts.OutboundFile{}, fmt.Errorf("write %s: %w", name, err)
 	}
 	return file, nil
 }
