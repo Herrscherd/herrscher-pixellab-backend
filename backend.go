@@ -198,20 +198,30 @@ func (b *Backend) redact(err error) error {
 	if message == err.Error() {
 		return err
 	}
-	return redactedError{message: message, cause: err}
+	return redactedError{message: message, kept: keptSentinels(err)}
 }
 
 type redactedError struct {
 	message string
-	cause   error
+	kept    []error
 }
 
 func (e redactedError) Error() string {
 	return e.message
 }
 
-func (e redactedError) Unwrap() error {
-	return e.cause
+func (e redactedError) Unwrap() []error {
+	return e.kept
+}
+
+func keptSentinels(err error) []error {
+	var kept []error
+	for _, sentinel := range redactionSentinels() {
+		if errors.Is(err, sentinel) {
+			kept = append(kept, sentinel)
+		}
+	}
+	return kept
 }
 
 type failover struct {

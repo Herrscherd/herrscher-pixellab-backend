@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,8 +41,34 @@ func TestParseAccountsReadsTheFormat(t *testing.T) {
 }
 
 func TestParseAccountsRejectsABadTier(t *testing.T) {
-	if _, err := parseAccounts("alpha | 0.4.120 | gold", account{}); !errors.Is(err, ErrInvalidAccount) {
+	_, err := parseAccounts("alpha | 0.4.120\nbeta | 0.4.120 | gold-secret", account{})
+	if !errors.Is(err, ErrInvalidAccount) {
 		t.Fatalf("error = %v, want ErrInvalidAccount", err)
+	}
+	if !strings.Contains(err.Error(), "line 2") {
+		t.Fatalf("error = %v, want the line number", err)
+	}
+	if strings.Contains(err.Error(), "gold-secret") {
+		t.Fatalf("error leaks the content of the line: %v", err)
+	}
+}
+
+func TestLoadAccountsKeepsTheManifestOutOfErrors(t *testing.T) {
+	dir := t.TempDir()
+	extension := filepath.Join(dir, asepriteExtension)
+	if err := os.MkdirAll(extension, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"version":"0.4.120","secret":"local-secret",}`
+	if err := os.WriteFile(filepath.Join(extension, asepriteManifest), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := loadAccounts(settings{asepriteDir: dir}, "")
+	if !errors.Is(err, ErrInvalidAccount) {
+		t.Fatalf("error = %v, want ErrInvalidAccount", err)
+	}
+	if strings.Contains(err.Error(), "local-secret") {
+		t.Fatalf("error leaks the manifest content: %v", err)
 	}
 }
 

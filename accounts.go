@@ -71,18 +71,19 @@ func accountsText(config settings) (string, error) {
 
 func parseAccounts(text string, fallback account) ([]account, error) {
 	var accounts []account
-	lines := strings.FieldsFunc(text, func(char rune) bool { return char == '\n' || char == ';' })
-	for _, line := range lines {
-		before, _, _ := strings.Cut(line, "#")
-		body := strings.TrimSpace(before)
-		if body == "" {
-			continue
+	for index, line := range strings.Split(text, "\n") {
+		for _, item := range strings.Split(line, ";") {
+			before, _, _ := strings.Cut(item, "#")
+			body := strings.TrimSpace(before)
+			if body == "" {
+				continue
+			}
+			entry, err := accountFromFields(strings.Split(body, "|"), fallback)
+			if err != nil {
+				return nil, fmt.Errorf("line %d: %w", index+1, err)
+			}
+			accounts = append(accounts, entry)
 		}
-		entry, err := accountFromFields(strings.Split(body, "|"), fallback)
-		if err != nil {
-			return nil, err
-		}
-		accounts = append(accounts, entry)
 	}
 	return accounts, nil
 }
@@ -102,7 +103,7 @@ func accountFromFields(fields []string, fallback account) (account, error) {
 	if len(fields) > 2 && strings.TrimSpace(fields[2]) != "" {
 		tier, err := strconv.Atoi(strings.TrimSpace(fields[2]))
 		if err != nil || tier < 1 {
-			return account{}, fmt.Errorf("%w: tier %q is not a positive number", ErrInvalidAccount, fields[2])
+			return account{}, fmt.Errorf("%w: the tier is not a positive number", ErrInvalidAccount)
 		}
 		entry.tier = tier
 	}
@@ -125,7 +126,7 @@ func asepriteAccount(dir, home string) (account, bool, error) {
 	}
 	var credentials asepriteCredentials
 	if err := json.Unmarshal(raw, &credentials); err != nil {
-		return account{}, false, fmt.Errorf("%w: %s: %w", ErrInvalidAccount, asepriteManifest, err)
+		return account{}, false, fmt.Errorf("%w: %s is not valid JSON", ErrInvalidAccount, asepriteManifest)
 	}
 	if credentials.Secret == "" {
 		return account{}, false, nil

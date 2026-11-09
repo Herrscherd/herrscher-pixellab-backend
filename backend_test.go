@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -221,20 +222,46 @@ func TestSingleAccountRidesTheSlowQueue(t *testing.T) {
 	}
 }
 
-func TestNoAccountDeliveringReturnsNoDelivery(t *testing.T) {
-	secret := "account-a-secret"
-	first := account{secret: secret, version: "0.4.120", tier: 1}
-	second := account{secret: "account-b-secret", version: "0.4.120", tier: 1}
-	_, _, build := startFake(t, func(_, _ string) []string {
+func TestSlowQueueRideRedactsTheSecret(t *testing.T) {
+	const secret = "account-a-secret"
+	var accountACalls atomic.Int32
+	_, _, build := startFake(t, func(_, sent string) []string {
+		if sent == "account-b-secret" {
+			return []string{errorMessage("unauthorized")}
+		}
+		if accountACalls.Add(1) == 1 {
+			return []string{slowMessage()}
+		}
 		return []string{errorMessage("refused " + secret)}
 	})
-	backend := build(first, second)
+	backend := build(
+		account{secret: secret, version: "0.4.120", tier: 1},
+		account{secret: "account-b-secret", version: "0.4.120", tier: 1},
+	)
 	_, err := respondWith(t, backend, "--size 2 tree", nil)
-	if !errors.Is(err, ErrNoDelivery) {
-		t.Fatalf("error = %v, want ErrNoDelivery", err)
+	if !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer from the slow queue ride", err)
 	}
-	if strings.Contains(err.Error(), secret) {
-		t.Fatalf("error leaks a secret: %v", err)
+	for _, node := range errorTree(err) {
+		if strings.Contains(node.Error(), secret) {
+			t.Fatalf("error chain leaks the secret at %q", node.Error())
+		}
+	}
+	if !strings.Contains(err.Error(), redacted) {
+		t.Fatalf("error = %v, want the secret replaced by %s", err, redacted)
+	}
+}
+
+func TestNoAccountDeliveringReturnsNoDelivery(t *testing.T) {
+	_, _, build := startFake(t, func(_, _ string) []string {
+		return []string{errorMessage("unauthorized")}
+	})
+	backend := build(
+		account{secret: "account-a-secret", version: "0.4.120", tier: 1},
+		account{secret: "account-b-secret", version: "0.4.120", tier: 1},
+	)
+	if _, err := respondWith(t, backend, "--size 2 tree", nil); !errors.Is(err, ErrNoDelivery) {
+		t.Fatalf("error = %v, want ErrNoDelivery", err)
 	}
 }
 
@@ -292,6 +319,36 @@ func TestRedactHidesSecrets(t *testing.T) {
 	if backend.redact(nil) != nil {
 		t.Fatal("redact(nil) is not nil")
 	}
+}
+
+func TestRedactKeepsTheSentinelAndDropsTheCause(t *testing.T) {
+	backend := &Backend{accounts: []account{{secret: "hidden-value"}}}
+	redactedErr := backend.redact(fmt.Errorf("%w: refused hidden-value: %w", ErrServer, errors.New("hidden-value again")))
+	if !errors.Is(redactedErr, ErrServer) {
+		t.Fatalf("redacted error lost ErrServer: %v", redactedErr)
+	}
+	for _, node := range errorTree(redactedErr) {
+		if strings.Contains(node.Error(), "hidden-value") {
+			t.Fatalf("a link of the chain still shows the secret: %q", node.Error())
+		}
+	}
+}
+
+func errorTree(err error) []error {
+	if err == nil {
+		return nil
+	}
+	nodes := []error{err}
+	if many, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, inner := range many.Unwrap() {
+			nodes = append(nodes, errorTree(inner)...)
+		}
+		return nodes
+	}
+	if inner := errors.Unwrap(err); inner != nil {
+		nodes = append(nodes, errorTree(inner)...)
+	}
+	return nodes
 }
 
 func TestInterpretReadsEachMessageKind(t *testing.T) {

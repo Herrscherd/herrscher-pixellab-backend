@@ -1,6 +1,9 @@
 package pixellab
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 // Sentinel errors of the plugin, matched with errors.Is.
 var (
@@ -14,3 +17,19 @@ var (
 	ErrServer            = errors.New("pixellab server error")
 	ErrNoDelivery        = errors.New("no pixellab account delivered the image")
 )
+
+func redactionSentinels() []error {
+	return []error{
+		ErrInvalidSetting,
+		ErrNoAccount,
+		ErrInvalidAccount,
+		ErrInvalidOption,
+		ErrInvalidAttachment,
+		ErrNoOutbox,
+		ErrSubscriptionDry,
+		ErrServer,
+		ErrNoDelivery,
+		context.Canceled,
+		context.DeadlineExceeded,
+	}
+}
