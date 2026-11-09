@@ -79,7 +79,13 @@ func checkPNG(raw []byte) error {
 	if err != nil {
 		return fmt.Errorf("%w: frame is not a valid PNG: %w", ErrServer, err)
 	}
-	return checkFrameSize(imageSize{Width: config.Width, Height: config.Height})
+	if err := checkFrameSize(imageSize{Width: config.Width, Height: config.Height}); err != nil {
+		return err
+	}
+	if _, err := png.Decode(bytes.NewReader(raw)); err != nil {
+		return fmt.Errorf("%w: frame is not a valid PNG: %w", ErrServer, err)
+	}
+	return nil
 }
 
 func checkFrameSize(size imageSize) error {

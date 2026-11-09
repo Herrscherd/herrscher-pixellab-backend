@@ -37,7 +37,7 @@ func TestProbeWithoutAccountNamesTheVariable(t *testing.T) {
 }
 
 func TestProbeWithAccountIsConnected(t *testing.T) {
-	cfg := contracts.PluginConfig{Settings: map[string]string{settingAccounts: "secret | 0.4.120"}}
+	cfg := contracts.PluginConfig{Settings: map[string]string{settingAccounts: "secret | 0.4.120", settingAsepriteDir: t.TempDir()}}
 	if report := (prober{}).probe(t.Context(), contracts.ProbeAccess{Config: cfg}); report.State != contracts.HealthOK {
 		t.Fatalf("probe = %+v, want ok", report)
 	}

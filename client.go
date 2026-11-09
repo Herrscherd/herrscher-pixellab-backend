@@ -57,10 +57,8 @@ func (c client) generate(ctx context.Context, path string, body payload, abortOn
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrServer, err)
 	}
-	for frames := 1; ; frames++ {
-		if frames > maxReplyFrames {
-			return nil, fmt.Errorf("%w: more than %d frames before the final image", ErrTooManyFrames, maxReplyFrames)
-		}
+	pending := 0
+	for {
 		_, raw, err := conn.Read(ctx)
 		if err != nil {
 			return nil, readError(err)
@@ -71,6 +69,10 @@ func (c client) generate(ctx context.Context, path string, body payload, abortOn
 		}
 		if done {
 			return images, nil
+		}
+		pending++
+		if pending > maxReplyFrames {
+			return nil, fmt.Errorf("%w: more than %d frames before the final image", ErrTooManyFrames, maxReplyFrames)
 		}
 	}
 }

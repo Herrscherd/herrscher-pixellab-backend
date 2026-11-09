@@ -19,16 +19,32 @@ func TestGenerateRefusesAMessageOverTheLimit(t *testing.T) {
 	}
 }
 
-func TestGenerateRefusesMoreFramesThanTheLimit(t *testing.T) {
-	frames := make([]string, maxReplyFrames+1)
-	for index := range frames {
-		frames[index] = `{"type":"tool","progress":0.5}`
+func TestGenerateAcceptsTheMaxFramesBeforeTheFinalImage(t *testing.T) {
+	images, err := generateAfterProgressFrames(t, maxReplyFrames)
+	if err != nil {
+		t.Fatalf("error = %v, want the final image after %d progress frames", err, maxReplyFrames)
 	}
-	fake := &fakePixellab{script: func(string, string) []string { return frames }}
+	if len(images) != 1 {
+		t.Fatalf("images = %d, want 1", len(images))
+	}
+}
+
+func TestGenerateRefusesOneFrameOverTheLimit(t *testing.T) {
+	if _, err := generateAfterProgressFrames(t, maxReplyFrames+1); !errors.Is(err, ErrTooManyFrames) {
+		t.Fatalf("error = %v, want ErrTooManyFrames after %d progress frames", err, maxReplyFrames+1)
+	}
+}
+
+func generateAfterProgressFrames(t *testing.T, count int) ([]wireImage, error) {
+	t.Helper()
+	script := make([]string, 0, count+1)
+	for range count {
+		script = append(script, `{"type":"tool","progress":0.5}`)
+	}
+	script = append(script, finalMessage(1, 1, 0))
+	fake := &fakePixellab{script: func(string, string) []string { return script }}
 	server := httptest.NewServer(fake.handler(t))
 	t.Cleanup(server.Close)
 	reader := client{endpoint: "ws" + strings.TrimPrefix(server.URL, "http"), timeout: 30 * time.Second}
-	if _, err := reader.generate(t.Context(), pathNew, payload{}, false, nil); !errors.Is(err, ErrTooManyFrames) {
-		t.Fatalf("error = %v, want ErrTooManyFrames after %d frames", err, maxReplyFrames)
-	}
+	return reader.generate(t.Context(), pathNew, payload{}, false, nil)
 }

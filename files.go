@@ -12,12 +12,16 @@ import (
 var errFileTooLarge = errors.New("file is larger than the limit")
 
 func readBounded(path string, limit int64) ([]byte, error) {
-	root, err := os.OpenRoot(filepath.Dir(path))
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(filepath.Dir(resolved))
 	if err != nil {
 		return nil, err
 	}
 	defer closeQuietly(root)
-	file, err := root.Open(filepath.Base(path))
+	file, err := root.Open(filepath.Base(resolved))
 	if err != nil {
 		return nil, err
 	}

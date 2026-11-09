@@ -108,3 +108,14 @@ func TestSeedFlagIsPinned(t *testing.T) {
 		t.Fatalf("seed = %d given %v, want 42", opts.seed, opts.seedGiven)
 	}
 }
+
+func TestSeedFlagAcceptsTwoToTheSixtyTwo(t *testing.T) {
+	const seed = 1 << 62
+	opts, err := parseOptions("--seed 4611686018427387904 tree", settings{defaultSize: 64, maxImages: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.seed != seed {
+		t.Fatalf("seed = %d, want %d", opts.seed, int64(seed))
+	}
+}

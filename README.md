@@ -88,7 +88,7 @@ a copper lantern on a wooden table --size 128 --n 3 --seed 42
 "a slime with a crown" --size 64 --neg blur --no-shading
 ```
 
-Each frame that PixelLab returns is checked, then saved as `pixellab-NN.png` in the outbox, and the reply lists the files. A frame is a PNG or raw RGBA with sides from 1 to 256 px. A PNG whose header does not read, a frame over 8 MiB, or a request that receives more than 10 000 frames fails the turn with an error. The frame that failed is not written; the files of the turn already written stay in the outbox.
+Each frame that PixelLab returns is checked, then saved as `pixellab-NN.png` in the outbox, and the reply lists the files. A frame is a PNG or raw RGBA with sides from 1 to 256 px. A PNG that does not decode, a frame over 8 MiB, or a request that receives more than 10 000 frames before the final image fails the turn with an error. The frame that failed is not written; the files of the turn already written stay in the outbox.
 
 ## Modes and attachments
 
@@ -109,7 +109,7 @@ A turn runs one request after another, so `turn_timeout` (default `30m`) bounds 
 
 ## Files and the host
 
-The backend writes each PNG into the prompt's outbox and reports it through `TakeFiles`. The host calls `TakeFiles` right after each `Respond`, in the same turn and before any other `Respond`. Files of a `Respond` that were not taken by then are handed over with the files of the next turn.
+The backend needs a herrscher host that provides the outbox of outgoing files: a prompt without an outbox is refused. That outbox is a feature of herrscher PR #195, not released yet, so this backend cannot run against a released herrscher until it ships. The backend writes each PNG into the prompt's outbox and reports it through `TakeFiles`. The host calls `TakeFiles` right after each `Respond`, in the same turn and before any other `Respond`. Files of a `Respond` that were not taken by then are handed over with the files of the next turn.
 
 ## Probe
 

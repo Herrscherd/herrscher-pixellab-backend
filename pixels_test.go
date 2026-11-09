@@ -63,6 +63,22 @@ func TestFrameToPNGRefusesAForgedPNG(t *testing.T) {
 	}
 }
 
+func TestFrameToPNGRefusesAPNGWithCorruptData(t *testing.T) {
+	picture := image.NewNRGBA(image.Rect(0, 0, 2, 2))
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, picture); err != nil {
+		t.Fatal(err)
+	}
+	corrupt := buffer.Bytes()
+	start := bytes.Index(corrupt, []byte("IDAT")) + len("IDAT")
+	for index := start; index < start+8; index++ {
+		corrupt[index] ^= 0xFF
+	}
+	if _, err := frameToPNG(base64.StdEncoding.EncodeToString(corrupt), imageSize{}); !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer for a PNG whose header reads but whose data is corrupt", err)
+	}
+}
+
 func TestFrameToPNGRefusesAPNGOverTheSideLimit(t *testing.T) {
 	encoded := base64.StdEncoding.EncodeToString(headerOnlyPNG(maxSize+1, 1))
 	if _, err := frameToPNG(encoded, imageSize{}); !errors.Is(err, ErrServer) {

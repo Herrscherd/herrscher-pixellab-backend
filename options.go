@@ -199,7 +199,7 @@ func setFrames(opts *options, value string) error {
 }
 
 func setSeed(opts *options, value string) error {
-	seed, err := strconv.ParseInt(value, 10, 63)
+	seed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || seed < 0 {
 		return fmt.Errorf("%w: --seed %q is not a positive number", ErrInvalidOption, value)
 	}
