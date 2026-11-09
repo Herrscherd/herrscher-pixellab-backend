@@ -29,7 +29,7 @@ Then set the settings below, either in the herrscher configuration or through th
 | `accounts` | `PIXELLAB_ACCOUNTS` | none | Inline account list, in the [account format](#account-format). |
 | `accounts_file` | `PIXELLAB_ACCOUNTS_FILE` | none | Path to a file holding the same account list. Read when `accounts` is empty. |
 | `aseprite_dir` | `PIXELLAB_ASEPRITE_DIR` | `~/.config/aseprite/extensions` | Directory of the Aseprite extensions. Its `pixellab/package.json` supplies one account when no other source is set. |
-| `endpoint` | `PIXELLAB_ENDPOINT` | `wss://api.pixellab.ai` | Base WebSocket URL. Must start with `ws://` or `wss://`. |
+| `endpoint` | `PIXELLAB_ENDPOINT` | `wss://api.pixellab.ai` | Base WebSocket URL. `wss://` for any host; `ws://` only for a loopback address (`localhost`, `127.0.0.1`, `::1`). |
 | `default_size` | `PIXELLAB_DEFAULT_SIZE` | `64` | Side in pixels of a generated image when the prompt has no `--size`. Maximum 256. |
 | `max_images` | `PIXELLAB_MAX_IMAGES` | `4` | Largest value accepted for `--n` in one prompt. |
 | `timeout` | `PIXELLAB_TIMEOUT` | `10m` | Time limit of one request, a Go duration such as `90s` or `12m`. |

@@ -310,11 +310,24 @@ func TestInterpretReadsEachMessageKind(t *testing.T) {
 	if err != nil || !done || len(images) != 2 {
 		t.Fatalf("animate final = %d images, done %v, err %v", len(images), done, err)
 	}
-	if _, done, err := interpret([]byte("not json"), false, record); done || !errors.Is(err, ErrServer) {
-		t.Fatalf("garbled frame: done %v, err %v, want ErrServer and not done", done, err)
+	if _, done, err := interpret([]byte("not json"), false, record); done || err != nil {
+		t.Fatalf("garbled frame: done %v, err %v, want ignored", done, err)
 	}
 	if len(progressed) != 1 || progressed[0] != 25 {
 		t.Fatalf("progress = %v, want [25]", progressed)
+	}
+}
+
+func TestInterpretWaitsUntilEveryFrameHasData(t *testing.T) {
+	if _, done, err := interpret([]byte(`{"images":[{"base64":"AAAA"},{"base64":""}]}`), false, nil); done || err != nil {
+		t.Fatalf("partly empty reply: done %v, err %v, want to keep waiting", done, err)
+	}
+}
+
+func TestInterpretRefusesTooManyImages(t *testing.T) {
+	frames := strings.TrimSuffix(strings.Repeat(`{"base64":"AAAA"},`, maxReplyImages+1), ",")
+	if _, _, err := interpret([]byte(`{"images":[`+frames+`]}`), false, nil); !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer for %d images", err, maxReplyImages+1)
 	}
 }
 

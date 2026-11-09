@@ -2,6 +2,7 @@ package pixellab
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -109,8 +110,26 @@ func endpointSetting(cfg contracts.PluginConfig) (string, error) {
 		return defaultEndpoint, nil
 	}
 	parsed, err := url.Parse(text)
-	if err != nil || (parsed.Scheme != "wss" && parsed.Scheme != "ws") || parsed.Host == "" {
-		return "", fmt.Errorf("%w: %s=%q, want a ws or wss URL", ErrInvalidSetting, settingEndpoint, text)
+	if err != nil || !endpointAllowed(parsed) {
+		return "", fmt.Errorf("%w: %s=%q, want a wss URL, or a ws URL on loopback", ErrInvalidSetting, settingEndpoint, text)
 	}
 	return strings.TrimSuffix(text, "/"), nil
+}
+
+func endpointAllowed(parsed *url.URL) bool {
+	switch parsed.Scheme {
+	case "wss":
+		return parsed.Host != ""
+	case "ws":
+		return isLoopbackHost(parsed.Hostname())
+	}
+	return false
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	address := net.ParseIP(host)
+	return address != nil && address.IsLoopback()
 }

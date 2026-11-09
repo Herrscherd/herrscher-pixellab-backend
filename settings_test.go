@@ -17,6 +17,15 @@ func TestParseSettingsDefaults(t *testing.T) {
 	}
 }
 
+func TestEndpointAcceptsWssAndLoopbackWs(t *testing.T) {
+	for _, value := range []string{"wss://api.pixellab.ai", "ws://127.0.0.1:9000", "ws://localhost:9000", "ws://[::1]:9000"} {
+		s, err := parseSettings(contracts.PluginConfig{Settings: map[string]string{settingEndpoint: value}})
+		if err != nil || s.endpoint != value {
+			t.Errorf("endpoint %q: got %q, err %v", value, s.endpoint, err)
+		}
+	}
+}
+
 func TestParseSettingsRejectsBadValues(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -31,6 +40,9 @@ func TestParseSettingsRejectsBadValues(t *testing.T) {
 		{name: "timeout zero", key: settingTimeout, value: "0s"},
 		{name: "endpoint over http", key: settingEndpoint, value: "https://api.pixellab.ai"},
 		{name: "endpoint without host", key: settingEndpoint, value: "wss://"},
+		{name: "ws on a public host", key: settingEndpoint, value: "ws://api.pixellab.ai"},
+		{name: "ws on a private address", key: settingEndpoint, value: "ws://10.0.0.5:9000"},
+		{name: "ws without host", key: settingEndpoint, value: "ws://"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

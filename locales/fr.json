@@ -17,7 +17,7 @@
   {
     "id": "pixellab.setting.endpoint",
     "description": "Aide du réglage endpoint : URL WebSocket de base de PixelLab",
-    "other": "URL WebSocket de base de l'API PixelLab"
+    "other": "URL WebSocket de base de l'API PixelLab : wss:// pour tout hôte, ws:// seulement vers une adresse de bouclage"
   },
   {
     "id": "pixellab.setting.default_size",

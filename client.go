@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	maxMessageBytes = 64 << 20
+	maxMessageBytes = 16 << 20
+	maxReplyImages  = maxGrid * maxGrid
 	percentScale    = 100
 )
 
@@ -84,10 +85,15 @@ func closeConnection(conn *websocket.Conn) {
 	}
 }
 
-func interpret(raw []byte, abortOnSlow bool, progress func(int)) ([]wireImage, bool, error) {
+func decodeMessage(raw []byte) (wireMessage, bool) {
 	var message wireMessage
-	if err := json.Unmarshal(raw, &message); err != nil {
-		return nil, false, fmt.Errorf("%w: unreadable message: %w", ErrServer, err)
+	return message, json.Unmarshal(raw, &message) == nil
+}
+
+func interpret(raw []byte, abortOnSlow bool, progress func(int)) ([]wireImage, bool, error) {
+	message, ok := decodeMessage(raw)
+	if !ok {
+		return nil, false, nil
 	}
 	if reason := serverReason(message); reason != "" {
 		return nil, false, fmt.Errorf("%w: %s", ErrServer, reason)
@@ -101,14 +107,33 @@ func interpret(raw []byte, abortOnSlow bool, progress func(int)) ([]wireImage, b
 		}
 		return nil, false, nil
 	}
-	images := message.Images
-	if len(images) == 0 && message.Image != nil {
-		images = []wireImage{*message.Image}
+	images := replyImages(message)
+	if len(images) > maxReplyImages {
+		return nil, false, fmt.Errorf("%w: %d images in one reply, at most %d expected", ErrServer, len(images), maxReplyImages)
 	}
-	if len(images) > 0 && images[0].Base64 != "" {
+	if len(images) > 0 && allHaveData(images) {
 		return images, true, nil
 	}
 	return nil, false, nil
+}
+
+func replyImages(message wireMessage) []wireImage {
+	if len(message.Images) > 0 {
+		return message.Images
+	}
+	if message.Image != nil {
+		return []wireImage{*message.Image}
+	}
+	return nil
+}
+
+func allHaveData(images []wireImage) bool {
+	for _, image := range images {
+		if image.Base64 == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func serverReason(message wireMessage) string {
