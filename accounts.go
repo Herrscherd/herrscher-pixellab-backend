@@ -14,6 +14,7 @@ const (
 	defaultTier       = 1
 	asepriteExtension = "pixellab"
 	asepriteManifest  = "package.json"
+	maxAccountBytes   = 64 << 10
 )
 
 type account struct {
@@ -62,7 +63,7 @@ func accountsText(config settings) (string, error) {
 	if config.accountsFile == "" {
 		return "", nil
 	}
-	raw, err := os.ReadFile(config.accountsFile)
+	raw, err := readBounded(config.accountsFile, maxAccountBytes)
 	if err != nil {
 		return "", fmt.Errorf("%w: %s: %w", ErrInvalidSetting, settingAccountsFile, err)
 	}
@@ -117,7 +118,7 @@ func asepriteAccount(dir, home string) (account, bool, error) {
 		}
 		dir = filepath.Join(home, ".config", "aseprite", "extensions")
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, asepriteExtension, asepriteManifest))
+	raw, err := readBounded(filepath.Join(dir, asepriteExtension, asepriteManifest), maxAccountBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return account{}, false, nil
 	}

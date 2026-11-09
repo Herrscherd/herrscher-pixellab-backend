@@ -3,6 +3,7 @@ package pixellab
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -15,6 +16,7 @@ import (
 const (
 	maxMessageBytes = 16 << 20
 	maxReplyImages  = maxGrid * maxGrid
+	maxReplyFrames  = 10000
 	percentScale    = 100
 )
 
@@ -55,10 +57,11 @@ func (c client) generate(ctx context.Context, path string, body payload, abortOn
 	if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
 		return nil, fmt.Errorf("%w: send request: %w", ErrServer, err)
 	}
+	pending := 0
 	for {
 		_, raw, err := conn.Read(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("%w: connection ended before the final image: %w", ErrServer, err)
+			return nil, readError(err)
 		}
 		images, done, err := interpret(raw, abortOnSlow, progress)
 		if err != nil {
@@ -67,7 +70,18 @@ func (c client) generate(ctx context.Context, path string, body payload, abortOn
 		if done {
 			return images, nil
 		}
+		pending++
+		if pending > maxReplyFrames {
+			return nil, fmt.Errorf("%w: more than %d frames before the final image", ErrTooManyFrames, maxReplyFrames)
+		}
 	}
+}
+
+func readError(err error) error {
+	if errors.Is(err, websocket.ErrMessageTooBig) || websocket.CloseStatus(err) == websocket.StatusMessageTooBig {
+		return fmt.Errorf("%w: %w", ErrMessageTooLarge, err)
+	}
+	return fmt.Errorf("%w: connection ended before the final image: %w", ErrServer, err)
 }
 
 func discardBody(resp *http.Response) {
@@ -103,7 +117,7 @@ func interpret(raw []byte, abortOnSlow bool, progress func(int)) ([]wireImage, b
 			return nil, false, ErrSubscriptionDry
 		}
 		if progress != nil {
-			progress(int(math.Round(*message.Progress * percentScale)))
+			progress(percentOf(*message.Progress))
 		}
 		return nil, false, nil
 	}
@@ -115,6 +129,10 @@ func interpret(raw []byte, abortOnSlow bool, progress func(int)) ([]wireImage, b
 		return images, true, nil
 	}
 	return nil, false, nil
+}
+
+func percentOf(fraction float64) int {
+	return int(math.Round(min(max(fraction, 0), 1) * percentScale))
 }
 
 func replyImages(message wireMessage) []wireImage {

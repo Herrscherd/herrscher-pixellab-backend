@@ -2,6 +2,8 @@ package pixellab
 
 import (
 	"errors"
+	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -31,6 +33,9 @@ func TestParseOptions(t *testing.T) {
 		{name: "missing description", content: "--size 32", wantErr: true},
 		{name: "animate needs an action", content: "--mode animate", wantErr: true},
 		{name: "animate with action", content: "--mode animate --action walk", mode: modeAnimate, size: 64, count: 1, noBackground: true},
+		{name: "animate refuses a description", content: "--mode animate --action walk knight", wantErr: true},
+		{name: "bare double dash is not a flag", content: "-- tree", wantErr: true},
+		{name: "empty quotes are not a word", content: `"" tree`, mode: modeNew, description: "tree", size: 64, count: 1, noBackground: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -67,6 +72,48 @@ func TestTokenizeKeepsQuotedSpaces(t *testing.T) {
 	}
 }
 
+func TestTokenizeKeepsAnExplicitEmptyValue(t *testing.T) {
+	tests := []struct {
+		text string
+		want []string
+	}{
+		{text: `""`, want: []string{""}},
+		{text: `   `, want: nil},
+		{text: ``, want: nil},
+		{text: `--`, want: []string{"--"}},
+		{text: `--neg "" a`, want: []string{"--neg", "", "a"}},
+	}
+	for _, tc := range tests {
+		tokens, err := tokenize(tc.text)
+		if err != nil {
+			t.Fatalf("tokenize(%q): %v", tc.text, err)
+		}
+		if !slices.Equal(tokens, tc.want) {
+			t.Fatalf("tokenize(%q) = %q, want %q", tc.text, tokens, tc.want)
+		}
+	}
+}
+
+func TestEmptyNegativeKeepsTheDescription(t *testing.T) {
+	opts, err := parseOptions(`--neg "" a red heart`, settings{defaultSize: 64, maxImages: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.negative != "" || opts.description != "a red heart" {
+		t.Fatalf("negative = %q, description = %q, want empty and a red heart", opts.negative, opts.description)
+	}
+}
+
+func TestEmptyWordsAreDropped(t *testing.T) {
+	opts, err := parseOptions(`"" tree ""`, settings{defaultSize: 64, maxImages: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.description != "tree" {
+		t.Fatalf("description = %q, want tree", opts.description)
+	}
+}
+
 func TestStyleFlagsTurnOffOneToggle(t *testing.T) {
 	opts, err := parseOptions("--no-outline --palette tree", settings{defaultSize: 64, maxImages: 4})
 	if err != nil {
@@ -84,5 +131,26 @@ func TestSeedFlagIsPinned(t *testing.T) {
 	}
 	if !opts.seedGiven || opts.seed != 42 {
 		t.Fatalf("seed = %d given %v, want 42", opts.seed, opts.seedGiven)
+	}
+}
+
+func TestSeedFlagRefusesASeedThatWouldOverflow(t *testing.T) {
+	_, err := parseOptions("--seed 9223372036854775807 tree", settings{defaultSize: 64, maxImages: 4})
+	if !errors.Is(err, ErrInvalidOption) {
+		t.Fatalf("err = %v, want ErrInvalidOption", err)
+	}
+	if _, err := parseOptions(fmt.Sprintf("--seed %d tree", int64(maxSeed)), settings{defaultSize: 64, maxImages: 4}); err != nil {
+		t.Fatalf("seed at the bound: %v", err)
+	}
+}
+
+func TestSeedFlagAcceptsTwoToTheSixtyTwo(t *testing.T) {
+	const seed = 1 << 62
+	opts, err := parseOptions("--seed 4611686018427387904 tree", settings{defaultSize: 64, maxImages: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.seed != seed {
+		t.Fatalf("seed = %d, want %d", opts.seed, int64(seed))
 	}
 }

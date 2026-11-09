@@ -185,9 +185,6 @@ linters:
         text: "^G(304|703):"
       - path: ^register\.go$
         linters: [gochecknoinits]
-      - path: ^(accounts|pixels)\.go$
-        linters: [gosec]
-        text: "^G304:"
       - path: ^client\.go$
         linters: [gosec]
         text: "^G117:"

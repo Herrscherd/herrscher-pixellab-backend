@@ -14,6 +14,7 @@ const pngSignature = "\x89PNG\r\n\x1a\n"
 
 const (
 	maxAttachmentBytes = 8 << 20
+	maxFrameBytes      = 8 << 20
 	rgbaChannels       = 4
 	gridSmall          = 42
 	gridMedium         = 85
@@ -48,23 +49,57 @@ func decodePNG(path string) (*image.NRGBA, error) {
 	return picture, nil
 }
 
-func decodeFrame(encoded string, declared imageSize) ([]byte, imageSize, error) {
+func frameToPNG(encoded string, declared imageSize) ([]byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return nil, imageSize{}, fmt.Errorf("%w: image is not base64: %w", ErrServer, err)
+		return nil, fmt.Errorf("%w: image is not base64: %w", ErrServer, err)
+	}
+	if len(raw) > maxFrameBytes {
+		return nil, fmt.Errorf("%w: image of %d bytes, at most %d allowed", ErrServer, len(raw), maxFrameBytes)
 	}
 	if bytes.HasPrefix(raw, []byte(pngSignature)) {
-		return raw, declared, nil
+		return acceptPNG(raw)
 	}
 	size, err := frameDimensions(raw, declared)
 	if err != nil {
-		return nil, imageSize{}, err
+		return nil, err
 	}
-	return raw, size, nil
+	return encodePNG(raw, size.Width, size.Height)
+}
+
+func acceptPNG(raw []byte) ([]byte, error) {
+	if err := checkPNG(raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func checkPNG(raw []byte) error {
+	config, err := png.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return fmt.Errorf("%w: frame is not a valid PNG: %w", ErrServer, err)
+	}
+	if err := checkFrameSize(imageSize{Width: config.Width, Height: config.Height}); err != nil {
+		return err
+	}
+	if _, err := png.Decode(bytes.NewReader(raw)); err != nil {
+		return fmt.Errorf("%w: frame is not a valid PNG: %w", ErrServer, err)
+	}
+	return nil
+}
+
+func checkFrameSize(size imageSize) error {
+	if size.Width < 1 || size.Width > maxSize || size.Height < 1 || size.Height > maxSize {
+		return fmt.Errorf("%w: frame of %dx%d px, want sides from 1 to %d", ErrServer, size.Width, size.Height, maxSize)
+	}
+	return nil
 }
 
 func frameDimensions(raw []byte, declared imageSize) (imageSize, error) {
 	if declared.Width > 0 && declared.Height > 0 {
+		if err := checkFrameSize(declared); err != nil {
+			return imageSize{}, err
+		}
 		if declared.Width*declared.Height*rgbaChannels != len(raw) {
 			return imageSize{}, fmt.Errorf("%w: %dx%d RGBA needs %d bytes, got %d", ErrServer, declared.Width, declared.Height, declared.Width*declared.Height*rgbaChannels, len(raw))
 		}
@@ -75,13 +110,13 @@ func frameDimensions(raw []byte, declared imageSize) (imageSize, error) {
 	if side*side*rgbaChannels != len(raw) {
 		return imageSize{}, fmt.Errorf("%w: %d bytes is not a square RGBA image", ErrServer, len(raw))
 	}
+	if err := checkFrameSize(imageSize{Width: side, Height: side}); err != nil {
+		return imageSize{}, err
+	}
 	return imageSize{Width: side, Height: side}, nil
 }
 
 func encodePNG(raw []byte, width, height int) ([]byte, error) {
-	if bytes.HasPrefix(raw, []byte(pngSignature)) {
-		return raw, nil
-	}
 	if width*height*rgbaChannels != len(raw) {
 		return nil, fmt.Errorf("%w: %dx%d RGBA needs %d bytes, got %d", ErrServer, width, height, width*height*rgbaChannels, len(raw))
 	}

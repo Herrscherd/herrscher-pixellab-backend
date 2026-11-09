@@ -2,6 +2,8 @@ package pixellab
 
 import (
 	"fmt"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -9,7 +11,10 @@ import (
 
 type mode string
 
-const maxRequests = 1024
+const (
+	maxRequests = 1024
+	maxSeed     = math.MaxInt64 - maxRequests
+)
 
 const (
 	modeNew     mode = "new"
@@ -87,6 +92,9 @@ func parseOptions(content string, cfg settings) (options, error) {
 			words = append(words, token)
 			continue
 		}
+		if name == "" {
+			return options{}, fmt.Errorf("%w: a bare -- is not a flag", ErrInvalidOption)
+		}
 		if apply, found := booleanFlags()[name]; found {
 			apply(&parsed)
 			continue
@@ -103,7 +111,7 @@ func parseOptions(content string, cfg settings) (options, error) {
 			return options{}, err
 		}
 	}
-	parsed.description = strings.Join(words, " ")
+	parsed.description = strings.Join(slices.DeleteFunc(words, isEmptyWord), " ")
 	return parsed, parsed.validate(cfg)
 }
 
@@ -111,13 +119,27 @@ func (opts options) validate(cfg settings) error {
 	if opts.count < 1 || opts.count > cfg.maxImages {
 		return fmt.Errorf("%w: --n must be between 1 and %d", ErrInvalidOption, cfg.maxImages)
 	}
-	if opts.mode == modeAnimate && opts.action == "" {
-		return fmt.Errorf("%w: animate needs --action", ErrInvalidOption)
+	if opts.mode == modeAnimate {
+		return opts.validateAnimate()
 	}
-	if opts.mode != modeAnimate && opts.description == "" {
+	if opts.description == "" {
 		return fmt.Errorf("%w: the prompt needs a description", ErrInvalidOption)
 	}
 	return nil
+}
+
+func (opts options) validateAnimate() error {
+	if opts.action == "" {
+		return fmt.Errorf("%w: animate needs --action", ErrInvalidOption)
+	}
+	if opts.description != "" {
+		return fmt.Errorf("%w: animate takes --action, not a description", ErrInvalidOption)
+	}
+	return nil
+}
+
+func isEmptyWord(word string) bool {
+	return word == ""
 }
 
 func tokenize(text string) ([]string, error) {
@@ -187,9 +209,12 @@ func setFrames(opts *options, value string) error {
 }
 
 func setSeed(opts *options, value string) error {
-	seed, err := strconv.ParseInt(value, 10, 63)
+	seed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || seed < 0 {
 		return fmt.Errorf("%w: --seed %q is not a positive number", ErrInvalidOption, value)
+	}
+	if seed > maxSeed {
+		return fmt.Errorf("%w: --seed must be at most %d", ErrInvalidOption, maxSeed)
 	}
 	opts.seed = seed
 	opts.seedGiven = true

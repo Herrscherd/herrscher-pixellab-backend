@@ -129,10 +129,12 @@ func (b *Backend) baseSeed(opts options) (int64, error) {
 }
 
 func (b *Backend) progressSink(onEvent func(contracts.BackendEvent), lang i18n.Language) func(int) {
+	last := -1
 	return func(percent int) {
-		if onEvent == nil {
+		if onEvent == nil || percent == last {
 			return
 		}
+		last = percent
 		onEvent(contracts.BackendEvent{
 			Kind:   progressKind,
 			Tool:   progressTool,
@@ -143,6 +145,7 @@ func (b *Backend) progressSink(onEvent func(contracts.BackendEvent), lang i18n.L
 
 func (b *Backend) generateWithFailover(ctx context.Context, request job, seed int64, state *failover, progress func(int)) ([]wireImage, error) {
 	abortOnSlow := len(b.accounts) > 1
+	var last error
 	for index, acc := range b.accounts {
 		if state.skipped(acc.secret) {
 			continue
@@ -154,6 +157,7 @@ func (b *Backend) generateWithFailover(ctx context.Context, request job, seed in
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+		last = err
 		if errors.Is(err, ErrSubscriptionDry) {
 			state.dry[acc.secret] = true
 			slog.Info("pixellab: account out of subscription, switching", "account", index+1)
@@ -164,18 +168,14 @@ func (b *Backend) generateWithFailover(ctx context.Context, request job, seed in
 	}
 	alive := state.alive(b.accounts)
 	if len(alive) == 0 {
-		return nil, ErrNoDelivery
+		return nil, noDelivery(last)
 	}
 	slog.Info("pixellab: every account is dry, riding the slow queue")
 	return b.client.generate(ctx, request.path(), request.payload(alive[0], seed), false, progress)
 }
 
 func (b *Backend) writeImage(outbox string, number int, image wireImage) (contracts.OutboundFile, error) {
-	raw, size, err := decodeFrame(image.Base64, imageSize{Width: image.Width, Height: image.Height})
-	if err != nil {
-		return contracts.OutboundFile{}, err
-	}
-	data, err := encodePNG(raw, size.Width, size.Height)
+	data, err := frameToPNG(image.Base64, imageSize{Width: image.Width, Height: image.Height})
 	if err != nil {
 		return contracts.OutboundFile{}, err
 	}
@@ -184,10 +184,37 @@ func (b *Backend) writeImage(outbox string, number int, image wireImage) (contra
 	if err := contracts.ValidateOutboundFile(file, outbox); err != nil {
 		return contracts.OutboundFile{}, err
 	}
-	if err := os.WriteFile(file.Path, data, outputPermission); err != nil {
-		return contracts.OutboundFile{}, fmt.Errorf("write %s: %w", name, err)
+	if err := createExclusive(outbox, name, data); err != nil {
+		return contracts.OutboundFile{}, err
 	}
 	return file, nil
+}
+
+func createExclusive(dir, name string, data []byte) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return fmt.Errorf("open outbox: %w", err)
+	}
+	defer closeQuietly(root)
+	file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, outputPermission)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", name, err)
+	}
+	if _, err := file.Write(data); err != nil {
+		closeQuietly(file)
+		return fmt.Errorf("write %s: %w", name, err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", name, err)
+	}
+	return nil
+}
+
+func noDelivery(last error) error {
+	if last == nil {
+		return ErrNoDelivery
+	}
+	return fmt.Errorf("%w: last failure: %w", ErrNoDelivery, last)
 }
 
 func (b *Backend) storeFiles(files []contracts.OutboundFile) {

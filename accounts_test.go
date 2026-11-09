@@ -59,7 +59,7 @@ func TestLoadAccountsKeepsTheManifestOutOfErrors(t *testing.T) {
 	if err := os.MkdirAll(extension, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"version":"0.4.120","secret":"local-secret",}`
+	manifest := "local-secret-value"
 	if err := os.WriteFile(filepath.Join(extension, asepriteManifest), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -69,6 +69,21 @@ func TestLoadAccountsKeepsTheManifestOutOfErrors(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "local-secret") {
 		t.Fatalf("error leaks the manifest content: %v", err)
+	}
+}
+
+func TestInvalidManifestErrorNamesTheFile(t *testing.T) {
+	dir := t.TempDir()
+	extension := filepath.Join(dir, asepriteExtension)
+	if err := os.MkdirAll(extension, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(extension, asepriteManifest), []byte("local-secret-value"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := loadAccounts(settings{asepriteDir: dir}, "")
+	if err == nil || !strings.Contains(err.Error(), asepriteManifest) {
+		t.Fatalf("error = %v, want the manifest name in it", err)
 	}
 }
 
@@ -95,6 +110,46 @@ func TestLoadAccountsFallsBackToTheAsepriteExtension(t *testing.T) {
 	}
 	if len(accounts) != 1 || accounts[0].secret != "local-secret" || accounts[0].version != "0.4.120" || accounts[0].tier != 2 {
 		t.Fatalf("accounts = %+v, want the Aseprite account", accounts)
+	}
+}
+
+func TestLoadAccountsFollowsASymlinkedAccountsFile(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "accounts.txt")
+	if err := os.WriteFile(target, []byte("linked-secret | 0.4.120\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "accounts.txt")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := loadAccounts(settings{accountsFile: link, asepriteDir: t.TempDir()}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(accounts) != 1 || accounts[0].secret != "linked-secret" {
+		t.Fatalf("accounts = %+v, want the account of the linked file", accounts)
+	}
+}
+
+func TestLoadAccountsFollowsASymlinkedManifest(t *testing.T) {
+	manifest := filepath.Join(t.TempDir(), asepriteManifest)
+	if err := os.WriteFile(manifest, []byte(`{"version":"0.4.120","secret":"linked-secret"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	extension := filepath.Join(dir, asepriteExtension)
+	if err := os.MkdirAll(extension, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(manifest, filepath.Join(extension, asepriteManifest)); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := loadAccounts(settings{asepriteDir: dir}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(accounts) != 1 || accounts[0].secret != "linked-secret" {
+		t.Fatalf("accounts = %+v, want the account of the linked manifest", accounts)
 	}
 }
 
