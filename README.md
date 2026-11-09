@@ -109,7 +109,7 @@ A turn runs one request after another, so `turn_timeout` (default `30m`) bounds 
 
 ## Files and the host
 
-The backend needs a herrscher host that provides the outbox of outgoing files: a prompt without an outbox is refused. That outbox is a feature of herrscher PR #195, not released yet, so this backend cannot run against a released herrscher until it ships. The backend writes each PNG into the prompt's outbox and reports it through `TakeFiles`. The host calls `TakeFiles` right after each `Respond`, in the same turn and before any other `Respond`. Files of a `Respond` that were not taken by then are handed over with the files of the next turn.
+The backend needs a herrscher host that provides the outbox of outgoing files: a prompt without an outbox is refused. That outbox ships with herrscher v0.55.0, which also embeds this backend. The backend writes each PNG into the prompt's outbox and reports it through `TakeFiles`. The host calls `TakeFiles` right after each `Respond`, in the same turn and before any other `Respond`. Files of a `Respond` that were not taken by then are handed over with the files of the next turn.
 
 ## Probe
 
