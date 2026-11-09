@@ -262,8 +262,63 @@ func TestNoAccountDeliveringReturnsNoDelivery(t *testing.T) {
 		account{secret: "account-a-secret", version: "0.4.120", tier: 1},
 		account{secret: "account-b-secret", version: "0.4.120", tier: 1},
 	)
-	if _, err := respondWith(t, backend, "--size 2 tree", nil); !errors.Is(err, ErrNoDelivery) {
+	_, err := respondWith(t, backend, "--size 2 tree", nil)
+	if !errors.Is(err, ErrNoDelivery) {
 		t.Fatalf("error = %v, want ErrNoDelivery", err)
+	}
+	if !strings.Contains(err.Error(), "unauthorized") {
+		t.Fatalf("error = %v, want the last failure reason in it", err)
+	}
+}
+
+func TestProgressIsEmittedOnlyWhenItChanges(t *testing.T) {
+	backend, _, _ := startFake(t, func(string, string) []string {
+		return []string{
+			`{"type":"tool","progress":0.5}`,
+			`{"type":"tool","progress":0.5}`,
+			`{"type":"tool","progress":0.5}`,
+			`{"type":"tool","progress":0.75}`,
+			finalMessage(2, 2, 1),
+		}
+	})
+	var details []string
+	_, err := backend.Respond(t.Context(), contracts.Prompt{Content: "--size 2 tree", Outbox: t.TempDir()}, func(event contracts.BackendEvent) {
+		details = append(details, event.Detail)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(details, "|") != "50% generated|75% generated" {
+		t.Fatalf("progress events = %q, want one line per change", details)
+	}
+}
+
+func TestInterpretClampsProgress(t *testing.T) {
+	var progressed []int
+	record := func(percent int) { progressed = append(progressed, percent) }
+	for _, raw := range []string{`{"type":"tool","progress":1.7}`, `{"type":"tool","progress":-0.4}`} {
+		if _, _, err := interpret([]byte(raw), false, record); err != nil {
+			t.Fatalf("interpret(%s): %v", raw, err)
+		}
+	}
+	if len(progressed) != 2 || progressed[0] != 100 || progressed[1] != 0 {
+		t.Fatalf("progress = %v, want [100 0]", progressed)
+	}
+}
+
+func TestWriteImageDoesNotFollowALink(t *testing.T) {
+	outbox := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim.png")
+	if err := os.Symlink(victim, filepath.Join(outbox, "pixellab-01.png")); err != nil {
+		t.Fatal(err)
+	}
+	backend := &Backend{}
+	frame := wireImage{Base64: base64.StdEncoding.EncodeToString(make([]byte, 4)), Width: 1, Height: 1}
+	if _, err := backend.writeImage(outbox, 1, frame); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("error = %v, want os.ErrExist for a planted link", err)
+	}
+	if _, err := os.Stat(victim); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the link target was written: stat = %v", err)
 	}
 }
 

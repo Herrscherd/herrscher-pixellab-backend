@@ -59,7 +59,7 @@ func TestLoadAccountsKeepsTheManifestOutOfErrors(t *testing.T) {
 	if err := os.MkdirAll(extension, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"version":"0.4.120","secret":"local-secret",}`
+	manifest := "local-secret-value"
 	if err := os.WriteFile(filepath.Join(extension, asepriteManifest), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -69,6 +69,21 @@ func TestLoadAccountsKeepsTheManifestOutOfErrors(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "local-secret") {
 		t.Fatalf("error leaks the manifest content: %v", err)
+	}
+}
+
+func TestInvalidManifestErrorIsAboutTheJSONOnly(t *testing.T) {
+	dir := t.TempDir()
+	extension := filepath.Join(dir, asepriteExtension)
+	if err := os.MkdirAll(extension, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(extension, asepriteManifest), []byte("local-secret-value"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := loadAccounts(settings{asepriteDir: dir}, "")
+	if err == nil || !strings.Contains(err.Error(), asepriteManifest) {
+		t.Fatalf("error = %v, want the manifest name in it", err)
 	}
 }
 

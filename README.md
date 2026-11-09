@@ -1,6 +1,6 @@
 # herrscher-pixellab-backend
 
-A Herrscher backend that generates pixel art with [PixelLab](https://www.pixellab.ai) instead of a language model. A prompt goes in, PNG files come out in the outbox, and the reply names them.
+A Herrscher backend that generates pixel art with [PixelLab](https://www.pixellab.ai) instead of a language model. A prompt goes in, PNG files that have passed a check come out in the outbox, and the reply names them.
 
 Category: backend. Status: live.
 
@@ -88,7 +88,7 @@ a copper lantern on a wooden table --size 128 --n 3 --seed 42
 "a slime with a crown" --size 64 --neg blur --no-shading
 ```
 
-Each generated frame is saved as `pixellab-NN.png` in the outbox, and the reply lists the files.
+Each frame that PixelLab returns is checked, then saved as `pixellab-NN.png` in the outbox, and the reply lists the files. A frame is a PNG or raw RGBA with sides from 1 to 256 px. A PNG whose header does not read, a frame over 8 MiB, or a request that receives more than 10 000 frames fails the turn with an error. The frame that failed is not written; the files of the turn already written stay in the outbox.
 
 ## Modes and attachments
 
@@ -99,7 +99,7 @@ Attachments must be PNG files, square, and of the size given by `--size` when th
 | `new` | none, an attachment is rejected | Text to image. |
 | `edit` | 1 image | Edit the attached image from the description. |
 | `inpaint` | 2 images: the source, then the mask | Repaint the area the mask marks. |
-| `animate` | 1 or 2 images: the first frame, then optionally the last frame | Animate from `--action` over `--frames` frames. |
+| `animate` | 1 or 2 images: the first frame, then optionally the last frame | Animate from `--action` over `--frames` frames. Takes no description: a description is refused. |
 
 ## Slow queue and timeout
 
@@ -122,6 +122,8 @@ Run the same checks as CI from the repository root:
 ```sh
 GOWORK=off scripts/check.sh
 ```
+
+The G117 exclusion of `golangci-lint` covers `client.go` alone. The request body carries the account secret because the PixelLab protocol sends it there, so the finding is expected on that file; the exclusion matches the G117 text only, and no other file or linter is excluded.
 
 The live test in `live_test.go` calls the real API. It runs only when `PIXELLAB_LIVE=1` is set, and it spends quota.
 

@@ -44,15 +44,46 @@ func TestEncodePNGRejectsAShortBuffer(t *testing.T) {
 	}
 }
 
-func TestEncodePNGPassesAPNGThrough(t *testing.T) {
+func TestFrameToPNGPassesAValidPNG(t *testing.T) {
 	picture := image.NewNRGBA(image.Rect(0, 0, 1, 1))
 	var buffer bytes.Buffer
 	if err := png.Encode(&buffer, picture); err != nil {
 		t.Fatal(err)
 	}
-	data, err := encodePNG(buffer.Bytes(), 1, 1)
+	data, err := frameToPNG(base64.StdEncoding.EncodeToString(buffer.Bytes()), imageSize{})
 	if err != nil || !bytes.Equal(data, buffer.Bytes()) {
-		t.Fatalf("encodePNG did not return the PNG unchanged: %v", err)
+		t.Fatalf("frameToPNG did not return the PNG unchanged: %v", err)
+	}
+}
+
+func TestFrameToPNGRefusesAForgedPNG(t *testing.T) {
+	forged := base64.StdEncoding.EncodeToString([]byte(pngSignature + "not a png at all"))
+	if _, err := frameToPNG(forged, imageSize{}); !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer for a forged PNG", err)
+	}
+}
+
+func TestFrameToPNGRefusesAPNGOverTheSideLimit(t *testing.T) {
+	encoded := base64.StdEncoding.EncodeToString(headerOnlyPNG(maxSize+1, 1))
+	if _, err := frameToPNG(encoded, imageSize{}); !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer for a PNG wider than %d px", err, maxSize)
+	}
+}
+
+func TestFrameToPNGRefusesAnOversizedFrame(t *testing.T) {
+	encoded := base64.StdEncoding.EncodeToString(make([]byte, maxFrameBytes+1))
+	if _, err := frameToPNG(encoded, imageSize{}); !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer for a frame over %d bytes", err, maxFrameBytes)
+	}
+}
+
+func TestFrameDimensionsRefusesSidesOutOfRange(t *testing.T) {
+	huge := imageSize{Width: 1 << 40, Height: 1 << 40}
+	if _, err := frameDimensions(make([]byte, 4), huge); !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer for declared sides of 2^40", err)
+	}
+	if _, err := frameDimensions(make([]byte, 4*300*300), imageSize{}); !errors.Is(err, ErrServer) {
+		t.Fatalf("error = %v, want ErrServer for an inferred 300 px square", err)
 	}
 }
 

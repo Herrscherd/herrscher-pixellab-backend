@@ -31,6 +31,9 @@ func TestParseOptions(t *testing.T) {
 		{name: "missing description", content: "--size 32", wantErr: true},
 		{name: "animate needs an action", content: "--mode animate", wantErr: true},
 		{name: "animate with action", content: "--mode animate --action walk", mode: modeAnimate, size: 64, count: 1, noBackground: true},
+		{name: "animate refuses a description", content: "--mode animate --action walk knight", wantErr: true},
+		{name: "bare double dash is not a flag", content: "-- tree", wantErr: true},
+		{name: "empty quotes are not a word", content: `"" tree`, mode: modeNew, description: "tree", size: 64, count: 1, noBackground: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -64,6 +67,25 @@ func TestTokenizeKeepsQuotedSpaces(t *testing.T) {
 		if tokens[index] != want[index] {
 			t.Fatalf("tokens = %q, want %q", tokens, want)
 		}
+	}
+}
+
+func TestTokenizeYieldsNoEmptyToken(t *testing.T) {
+	for _, text := range []string{`""`, `"" ""`, `   `, ``} {
+		tokens, err := tokenize(text)
+		if err != nil {
+			t.Fatalf("tokenize(%q): %v", text, err)
+		}
+		if len(tokens) != 0 {
+			t.Fatalf("tokenize(%q) = %q, want no token", text, tokens)
+		}
+	}
+	tokens, err := tokenize("--")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tokens) != 1 || tokens[0] != "--" {
+		t.Fatalf("tokenize(--) = %q, want the single token --", tokens)
 	}
 }
 

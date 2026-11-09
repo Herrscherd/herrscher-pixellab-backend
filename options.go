@@ -87,6 +87,9 @@ func parseOptions(content string, cfg settings) (options, error) {
 			words = append(words, token)
 			continue
 		}
+		if name == "" {
+			return options{}, fmt.Errorf("%w: a bare -- is not a flag", ErrInvalidOption)
+		}
 		if apply, found := booleanFlags()[name]; found {
 			apply(&parsed)
 			continue
@@ -111,11 +114,21 @@ func (opts options) validate(cfg settings) error {
 	if opts.count < 1 || opts.count > cfg.maxImages {
 		return fmt.Errorf("%w: --n must be between 1 and %d", ErrInvalidOption, cfg.maxImages)
 	}
-	if opts.mode == modeAnimate && opts.action == "" {
+	if opts.mode == modeAnimate {
+		return opts.validateAnimate()
+	}
+	if opts.description == "" {
+		return fmt.Errorf("%w: the prompt needs a description", ErrInvalidOption)
+	}
+	return nil
+}
+
+func (opts options) validateAnimate() error {
+	if opts.action == "" {
 		return fmt.Errorf("%w: animate needs --action", ErrInvalidOption)
 	}
-	if opts.mode != modeAnimate && opts.description == "" {
-		return fmt.Errorf("%w: the prompt needs a description", ErrInvalidOption)
+	if opts.description != "" {
+		return fmt.Errorf("%w: animate takes --action, not a description", ErrInvalidOption)
 	}
 	return nil
 }
@@ -128,7 +141,6 @@ func tokenize(text string) ([]string, error) {
 		switch {
 		case char == '"':
 			inQuotes = !inQuotes
-			inToken = true
 		case unicode.IsSpace(char) && !inQuotes:
 			if inToken {
 				tokens = append(tokens, string(current))
