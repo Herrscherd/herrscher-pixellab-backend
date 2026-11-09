@@ -171,5 +171,5 @@ func randomSeed() (int64, error) {
 	if _, err := rand.Read(buffer[:]); err != nil {
 		return 0, fmt.Errorf("read seed: %w", err)
 	}
-	return int64(binary.LittleEndian.Uint64(buffer[:]) >> 1), nil
+	return int64(binary.LittleEndian.Uint64(buffer[:])>>1) % (maxSeed + 1), nil
 }

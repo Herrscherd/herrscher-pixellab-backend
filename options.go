@@ -2,6 +2,8 @@ package pixellab
 
 import (
 	"fmt"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -9,7 +11,10 @@ import (
 
 type mode string
 
-const maxRequests = 1024
+const (
+	maxRequests = 1024
+	maxSeed     = math.MaxInt64 - maxRequests
+)
 
 const (
 	modeNew     mode = "new"
@@ -106,7 +111,7 @@ func parseOptions(content string, cfg settings) (options, error) {
 			return options{}, err
 		}
 	}
-	parsed.description = strings.Join(words, " ")
+	parsed.description = strings.Join(slices.DeleteFunc(words, isEmptyWord), " ")
 	return parsed, parsed.validate(cfg)
 }
 
@@ -133,6 +138,10 @@ func (opts options) validateAnimate() error {
 	return nil
 }
 
+func isEmptyWord(word string) bool {
+	return word == ""
+}
+
 func tokenize(text string) ([]string, error) {
 	var tokens []string
 	var current []rune
@@ -141,6 +150,7 @@ func tokenize(text string) ([]string, error) {
 		switch {
 		case char == '"':
 			inQuotes = !inQuotes
+			inToken = true
 		case unicode.IsSpace(char) && !inQuotes:
 			if inToken {
 				tokens = append(tokens, string(current))
@@ -202,6 +212,9 @@ func setSeed(opts *options, value string) error {
 	seed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || seed < 0 {
 		return fmt.Errorf("%w: --seed %q is not a positive number", ErrInvalidOption, value)
+	}
+	if seed > maxSeed {
+		return fmt.Errorf("%w: --seed must be at most %d", ErrInvalidOption, maxSeed)
 	}
 	opts.seed = seed
 	opts.seedGiven = true

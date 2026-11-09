@@ -2,6 +2,8 @@ package pixellab
 
 import (
 	"errors"
+	"fmt"
+	"slices"
 	"testing"
 )
 
@@ -70,22 +72,45 @@ func TestTokenizeKeepsQuotedSpaces(t *testing.T) {
 	}
 }
 
-func TestTokenizeYieldsNoEmptyToken(t *testing.T) {
-	for _, text := range []string{`""`, `"" ""`, `   `, ``} {
-		tokens, err := tokenize(text)
+func TestTokenizeKeepsAnExplicitEmptyValue(t *testing.T) {
+	tests := []struct {
+		text string
+		want []string
+	}{
+		{text: `""`, want: []string{""}},
+		{text: `   `, want: nil},
+		{text: ``, want: nil},
+		{text: `--`, want: []string{"--"}},
+		{text: `--neg "" a`, want: []string{"--neg", "", "a"}},
+	}
+	for _, tc := range tests {
+		tokens, err := tokenize(tc.text)
 		if err != nil {
-			t.Fatalf("tokenize(%q): %v", text, err)
+			t.Fatalf("tokenize(%q): %v", tc.text, err)
 		}
-		if len(tokens) != 0 {
-			t.Fatalf("tokenize(%q) = %q, want no token", text, tokens)
+		if !slices.Equal(tokens, tc.want) {
+			t.Fatalf("tokenize(%q) = %q, want %q", tc.text, tokens, tc.want)
 		}
 	}
-	tokens, err := tokenize("--")
+}
+
+func TestEmptyNegativeKeepsTheDescription(t *testing.T) {
+	opts, err := parseOptions(`--neg "" a red heart`, settings{defaultSize: 64, maxImages: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tokens) != 1 || tokens[0] != "--" {
-		t.Fatalf("tokenize(--) = %q, want the single token --", tokens)
+	if opts.negative != "" || opts.description != "a red heart" {
+		t.Fatalf("negative = %q, description = %q, want empty and a red heart", opts.negative, opts.description)
+	}
+}
+
+func TestEmptyWordsAreDropped(t *testing.T) {
+	opts, err := parseOptions(`"" tree ""`, settings{defaultSize: 64, maxImages: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.description != "tree" {
+		t.Fatalf("description = %q, want tree", opts.description)
 	}
 }
 
@@ -106,6 +131,16 @@ func TestSeedFlagIsPinned(t *testing.T) {
 	}
 	if !opts.seedGiven || opts.seed != 42 {
 		t.Fatalf("seed = %d given %v, want 42", opts.seed, opts.seedGiven)
+	}
+}
+
+func TestSeedFlagRefusesASeedThatWouldOverflow(t *testing.T) {
+	_, err := parseOptions("--seed 9223372036854775807 tree", settings{defaultSize: 64, maxImages: 4})
+	if !errors.Is(err, ErrInvalidOption) {
+		t.Fatalf("err = %v, want ErrInvalidOption", err)
+	}
+	if _, err := parseOptions(fmt.Sprintf("--seed %d tree", int64(maxSeed)), settings{defaultSize: 64, maxImages: 4}); err != nil {
+		t.Fatalf("seed at the bound: %v", err)
 	}
 }
 
