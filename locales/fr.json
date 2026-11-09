@@ -1,0 +1,48 @@
+[
+  {
+    "id": "pixellab.setting.accounts",
+    "description": "Aide du réglage accounts : comptes PixelLab en ligne, un par ligne",
+    "other": "comptes PixelLab en ligne, un par ligne, au format <secret> [| version] [| palier]"
+  },
+  {
+    "id": "pixellab.setting.accounts_file",
+    "description": "Aide du réglage accounts_file : chemin d'un fichier listant les comptes PixelLab",
+    "other": "chemin d'un fichier listant les comptes PixelLab, un par ligne"
+  },
+  {
+    "id": "pixellab.setting.aseprite_dir",
+    "description": "Aide du réglage aseprite_dir : dossier des extensions Aseprite lu si aucun compte n'est configuré",
+    "other": "dossier des extensions Aseprite, lu pour pixellab/package.json quand aucun compte n'est configuré"
+  },
+  {
+    "id": "pixellab.setting.endpoint",
+    "description": "Aide du réglage endpoint : URL WebSocket de base de PixelLab",
+    "other": "URL WebSocket de base de l'API PixelLab"
+  },
+  {
+    "id": "pixellab.setting.default_size",
+    "description": "Aide du réglage default_size : côté en pixels d'une image sans --size, de 1 à 256",
+    "other": "côté en pixels d'une image sans --size, de 1 à 256"
+  },
+  {
+    "id": "pixellab.setting.max_images",
+    "description": "Aide du réglage max_images : nombre maximal d'images qu'un prompt peut demander",
+    "other": "nombre maximal d'images qu'un prompt peut demander avec --n"
+  },
+  {
+    "id": "pixellab.setting.timeout",
+    "description": "Aide du réglage timeout : délai d'une requête de génération, file lente comprise",
+    "other": "délai d'une requête de génération, file lente comprise, au format durée Go"
+  },
+  {
+    "id": "pixellab.reply.delivered",
+    "description": "Texte de réponse envoyé avec les fichiers PNG d'un tour ; Count est le nombre de fichiers",
+    "one": "{{.Count}} image prête",
+    "other": "{{.Count}} images prêtes"
+  },
+  {
+    "id": "pixellab.progress.percent",
+    "description": "Ligne de progression d'une génération en cours ; Percent est la part terminée",
+    "other": "{{.Percent}} % généré"
+  }
+]

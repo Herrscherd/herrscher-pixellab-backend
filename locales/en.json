@@ -1,0 +1,48 @@
+[
+  {
+    "id": "pixellab.setting.accounts",
+    "description": "Help of the accounts setting: inline PixelLab accounts, one per line",
+    "other": "inline PixelLab accounts, one per line, as <secret> [| version] [| tier]"
+  },
+  {
+    "id": "pixellab.setting.accounts_file",
+    "description": "Help of the accounts_file setting: path of a file listing the PixelLab accounts",
+    "other": "path of a file listing the PixelLab accounts, one per line"
+  },
+  {
+    "id": "pixellab.setting.aseprite_dir",
+    "description": "Help of the aseprite_dir setting: the Aseprite extensions folder read for the PixelLab account when none is configured",
+    "other": "Aseprite extensions folder, read for pixellab/package.json when no account is configured"
+  },
+  {
+    "id": "pixellab.setting.endpoint",
+    "description": "Help of the endpoint setting: the WebSocket base URL of PixelLab",
+    "other": "WebSocket base URL of the PixelLab API"
+  },
+  {
+    "id": "pixellab.setting.default_size",
+    "description": "Help of the default_size setting: the side in pixels of a generated image when the prompt gives no --size",
+    "other": "side in pixels of a generated image when the prompt gives no --size, from 1 to 256"
+  },
+  {
+    "id": "pixellab.setting.max_images",
+    "description": "Help of the max_images setting: the most images one prompt may ask for",
+    "other": "most images one prompt may ask for with --n"
+  },
+  {
+    "id": "pixellab.setting.timeout",
+    "description": "Help of the timeout setting: the deadline of one generation request, slow queue included",
+    "other": "deadline of one generation request, slow queue included, as a Go duration"
+  },
+  {
+    "id": "pixellab.reply.delivered",
+    "description": "Reply text sent with the PNG files of a turn; Count is the number of files",
+    "one": "{{.Count}} image ready",
+    "other": "{{.Count}} images ready"
+  },
+  {
+    "id": "pixellab.progress.percent",
+    "description": "Progress line of a generation in flight; Percent is the completed share",
+    "other": "{{.Percent}}% generated"
+  }
+]
